@@ -11,6 +11,7 @@ class PipelineFactory {
     static model = null;
     static quantized = null;
     static instance = null;
+    static translationInstance=null;
 
     constructor(tokenizer, model, quantized) {
         this.tokenizer = tokenizer;
@@ -28,6 +29,15 @@ class PipelineFactory {
 
         return this.instance;
     }
+    static async getTranslationInstance(progress_callback=null) {
+        if (this.translationInstance === null) {
+            this.translationInstance = pipeline(this.task, this.model,{
+                progress_callback,
+            });
+        }
+
+        return this.translationInstance;
+    }
 }
 
 self.addEventListener("message", async (event) => {
@@ -44,6 +54,8 @@ self.addEventListener("message", async (event) => {
         message.language,
     );
     if (transcript === null) return;
+console.log('trans',transcript)
+    let translation=await translate(transcript.text)
 
     // Send the result back to the main thread
     self.postMessage({
@@ -57,6 +69,10 @@ class AutomaticSpeechRecognitionPipelineFactory extends PipelineFactory {
     static task = "automatic-speech-recognition";
     static model = null;
     static quantized = null;
+}
+class TranslationPipelineFactory extends PipelineFactory {
+    static task = "translation";
+    static model = 'lazycodepersona/m2m100_418m';
 }
 
 const transcribe = async (
@@ -173,3 +189,28 @@ const transcribe = async (
 
     return output;
 };
+
+const translate= async(text)=>{
+    const p = TranslationPipelineFactory;
+
+    // if (p.instance !== null) {
+    //     (await p.getInstance()).dispose();
+    //     p.instance = null;
+    // }
+
+    //    let translator = await pipeline('translation','Xenova/m2m100_418M');
+
+       // Load transcriber model
+    let translator = await p.getTranslationInstance();
+
+       let output = await translator(text, {
+        tgt_lang: 'fr',
+        src_lang: 'zh',
+
+        // Allows for partial output
+        callback_function: x => {
+           console.log('onUpd',translator.tokenizer.decode(x[0].output_token_ids, { skip_special_tokens: true }))
+        }
+    });
+    console.log('output',output)
+}
